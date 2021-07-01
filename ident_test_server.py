@@ -7,25 +7,34 @@ import _thread as thread
 if __name__ != "__main__":
     sys.exit(1)
 
-def send_ident_request(client_addr, client_port, server_port):
+def is_ipv4(addr):
     try:
-        try:
-            s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-            s.settimeout(timeout)
-            s.connect((client_addr, ident_port))
-        except:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(timeout)
-            s.connect((client_addr, ident_port))
+        socket.inet_pton(socket.AF_INET, addr)
+        return True
+    except:
+        return False
+
+def is_ipv6(addr):
+    try:
+        socket.inet_pton(socket.AF_INET6, addr)
+        return True
+    except:
+        return False
+
+def send_ident_request(client_addr, client_port, server_port, family):
+    try:
+        s = socket.socket(family, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        s.connect((client_addr, ident_port))
         s.send(str('%s, %s\r\n' % (client_port, server_port)).encode('utf-8'))
         msg = s.recv(1024)
         s.close()
         return msg
     except:
-        return b'Connection to ident server failed!\r\n'
+        return str('Connection to ident server (%s/%s) failed!\r\n' % (client_addr, ident_port)).encode('utf-8')
 
-def on_new_client(clientsocket,addr):
-    clientsocket.send(send_ident_request(addr[0], addr[1], port))
+def on_new_client(clientsocket, addr):
+    clientsocket.send(send_ident_request(addr[0], addr[1], port, clientsocket.family))
     clientsocket.close()
 
 if len(sys.argv[1:]) > 0:
@@ -50,12 +59,13 @@ else:
 
 print ("Server on %s port %s. Ident server port is %s with timeout %ss." % (host, port, ident_port, timeout))
 
-try:
+if is_ipv6 (host):
     s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-    s.bind((host, port))
-except:
+elif is_ipv4 (host):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((host, port))
+else:
+    raise Exception
+s.bind((host, port))
 
 s.listen()
 while True:
